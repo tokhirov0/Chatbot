@@ -1,9 +1,11 @@
+import os
 import telebot
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 
-TOKEN = "8179944633:AAER7yxmwfUM8u99KaWUbY1IwmRWhtr54i4"
-CHANNEL_USERNAME = "@shaxsiy_blog1o"
-ADMIN_ID = 6733100026
+# Maxfiylarni atrof-muhit (environment variables) orqali oling
+TOKEN = os.environ['TOKEN']
+CHANNEL_USERNAME = os.environ.get('CHANNEL_USERNAME', '@shaxsiy_blog1o')
+ADMIN_ID = int(os.environ.get('ADMIN_ID', 6733100026))
 
 bot = telebot.TeleBot(TOKEN)
 
@@ -15,85 +17,67 @@ def main_menu():
     markup.add(
         InlineKeyboardButton("Suhbatdosh topish", callback_data="find"),
         InlineKeyboardButton("Suhbatni to'xtatish", callback_data="stop"),
-        InlineKeyboardButton("Bot haqida", callback_data="info"),
+        InlineKeyboardButton("Bot haqida", callback_data="about"),
     )
     return markup
 
 def is_subscribed(user_id):
     try:
-        ch = bot.get_chat_member(CHANNEL_USERNAME, user_id)
-        return ch.status in ['member', 'administrator', 'creator']
-    except:
+        member = bot.get_chat_member(CHANNEL_USERNAME, user_id)
+        return member.status in ['member', 'administrator', 'creator']
+    except Exception:
         return False
 
 @bot.message_handler(commands=['start'])
-def start_handler(m):
-    uid = m.from_user.id
-    if not is_subscribed(uid):
+def start_handler(message):
+    if not is_subscribed(message.from_user.id):
         markup = InlineKeyboardMarkup()
-        markup.add(InlineKeyboardButton("Kanalga obuna bo'lish", url=f"https://t.me/{CHANNEL_USERNAME[1:]}"))
-        bot.send_message(uid, "Botdan foydalanish uchun kanalga obuna bo'ling.", reply_markup=markup)
+        markup.add(InlineKeyboardButton("Kanalga obuna bo‘lish", url=f"https://t.me/{CHANNEL_USERNAME.lstrip('@')}"))
+        bot.send_message(message.chat.id, "Botdan foydalanish uchun kanalga obuna bo‘ling!", reply_markup=markup)
         return
-    bot.send_message(uid, "Assalomu alaykum! 👋\nTugmalardan birini tanlang:", reply_markup=main_menu())
+    bot.send_message(message.chat.id, "Assalomu alaykum! Xush kelibsiz!\nSuhbatdosh topish uchun tugmani bosing.", reply_markup=main_menu())
 
 @bot.callback_query_handler(func=lambda call: True)
 def callback_handler(call):
-    uid = call.from_user.id
-    if not is_subscribed(uid):
-        markup = InlineKeyboardMarkup()
-        markup.add(InlineKeyboardButton("Kanalga obuna bo'lish", url=f"https://t.me/{CHANNEL_USERNAME[1:]}"))
-        bot.send_message(uid, "Botdan foydalanish uchun kanalga obuna bo'ling.", reply_markup=markup)
-        bot.answer_callback_query(call.id)
-        return
+    user_id = call.from_user.id
 
     if call.data == "find":
-        if uid in active:
-            bot.send_message(uid, "Siz allaqachon suhbatdasiz. Suhbatni to'xtating.", reply_markup=main_menu())
-        elif waiting and waiting[0] != uid:
-            partner = waiting.pop(0)
-            active[uid] = partner
-            active[partner] = uid
-            bot.send_message(uid, "✅ Suhbatdosh topildi!", reply_markup=main_menu())
-            bot.send_message(partner, "✅ Suhbatdosh topildi!", reply_markup=main_menu())
-        else:
-            waiting.append(uid)
-            bot.send_message(uid, "⏳ Kutish ro'yxatiga qo'shildingiz. Suhbatdosh topilishi bilan xabar beriladi.", reply_markup=main_menu())
-    elif call.data == "stop":
-        if uid in active:
-            partner = active.pop(uid)
-            active.pop(partner, None)
-            bot.send_message(uid, "❌ Suhbat tugatildi.", reply_markup=main_menu())
-            bot.send_message(partner, "❌ Suhbat tugatildi.", reply_markup=main_menu())
-        elif uid in waiting:
-            waiting.remove(uid)
-            bot.send_message(uid, "❌ Kutish ro'yxatidan chiqarildingiz.", reply_markup=main_menu())
-        else:
-            bot.send_message(uid, "Sizda faol suhbat yo'q.", reply_markup=main_menu())
-    elif call.data == "info":
-        bot.send_message(uid, "Bu bot orqali anonim tarzda notanish odamlar bilan suhbatlasha olasiz.\n/start — menyu", reply_markup=main_menu())
-    bot.answer_callback_query(call.id)
+        if user_id in waiting or user_id in active:
+            bot.answer_callback_query(call.id, "Siz allaqachon navbattasiz yoki suhbatdasiz!")
+            return
+        waiting.append(user_id)
+        bot.send_message(call.message.chat.id, "Siz navbatga qo‘shildingiz. Suhbatdosh topilmoqda...")
 
-@bot.message_handler(content_types=['text', 'photo', 'video', 'audio', 'document', 'voice', 'sticker'])
-def relay_handler(m):
-    uid = m.from_user.id
-    if uid in active:
-        partner = active[uid]
-        if m.content_type == "text":
-            bot.send_message(partner, m.text)
-        elif m.content_type == "photo":
-            bot.send_photo(partner, m.photo[-1].file_id, caption=m.caption or '')
-        elif m.content_type == "video":
-            bot.send_video(partner, m.video.file_id, caption=m.caption or '')
-        elif m.content_type == "audio":
-            bot.send_audio(partner, m.audio.file_id, caption=m.caption or '')
-        elif m.content_type == "document":
-            bot.send_document(partner, m.document.file_id, caption=m.caption or '')
-        elif m.content_type == "voice":
-            bot.send_voice(partner, m.voice.file_id)
-        elif m.content_type == "sticker":
-            bot.send_sticker(partner, m.sticker.file_id)
+        # Suhbatdosh topish
+        if len(waiting) >= 2:
+            user1 = waiting.pop(0)
+            user2 = waiting.pop(0)
+            active[user1] = user2
+            active[user2] = user1
+            bot.send_message(user1, "Suhbatdosh topildi! Suhbatni boshlang.")
+            bot.send_message(user2, "Suhbatdosh topildi! Suhbatni boshlang.")
+    elif call.data == "stop":
+        if user_id in active:
+            partner_id = active.pop(user_id)
+            active.pop(partner_id, None)
+            bot.send_message(user_id, "Suhbat to‘xtatildi.", reply_markup=main_menu())
+            bot.send_message(partner_id, "Suhbatdosh suhbatni to‘xtatdi.", reply_markup=main_menu())
+        else:
+            bot.send_message(user_id, "Siz hozircha hech kim bilan suhbatda emassiz.", reply_markup=main_menu())
+    elif call.data == "about":
+        bot.send_message(user_id, "Anonim chat-bot. Suhbatdoshingizni topish uchun 'Suhbatdosh topish' tugmasini bosing.")
+
+@bot.message_handler(func=lambda message: True, content_types=['text'])
+def relay_message(message):
+    user_id = message.from_user.id
+    if user_id in active:
+        partner_id = active[user_id]
+        try:
+            bot.send_message(partner_id, message.text)
+        except Exception:
+            bot.send_message(user_id, "Xabar yuborib bo‘lmadi.")
     else:
-        bot.send_message(uid, "Sizda suhbatdosh yo‘q. Suhbat boshlash uchun tugmani bosing.", reply_markup=main_menu())
+        bot.send_message(user_id, "Siz hozircha suhbatda emassiz.\nSuhbatdosh topish uchun tegishli tugmani bosing.", reply_markup=main_menu())
 
 if __name__ == "__main__":
     bot.infinity_polling()
