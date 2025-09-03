@@ -1,17 +1,26 @@
 import os
+import threading
 import telebot
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
+from flask import Flask
 
-# Maxfiylarni atrof-muhit (environment variables) orqali oling
+# Environment variables
 TOKEN = os.environ['TOKEN']
 CHANNEL_USERNAME = os.environ.get('CHANNEL_USERNAME', '@shaxsiy_blog1o')
 ADMIN_ID = int(os.environ.get('ADMIN_ID', 6733100026))
 
 bot = telebot.TeleBot(TOKEN)
-
 waiting = []
 active = {}
 
+# --- Flask (Render portni talab qiladi) ---
+app = Flask(__name__)
+
+@app.route("/")
+def home():
+    return "Bot is running on Render!"
+
+# --- Bot funksiyalari ---
 def main_menu():
     markup = InlineKeyboardMarkup(row_width=1)
     markup.add(
@@ -48,22 +57,23 @@ def callback_handler(call):
         waiting.append(user_id)
         bot.send_message(call.message.chat.id, "Siz navbatga qo‘shildingiz. Suhbatdosh topilmoqda...")
 
-        # Suhbatdosh topish
         if len(waiting) >= 2:
             user1 = waiting.pop(0)
             user2 = waiting.pop(0)
             active[user1] = user2
             active[user2] = user1
-            bot.send_message(user1, "Suhbatdosh topildi! Suhbatni boshlang.")
-            bot.send_message(user2, "Suhbatdosh topildi! Suhbatni boshlang.")
+            bot.send_message(user1, "✅ Suhbatdosh topildi! Suhbatni boshlang.")
+            bot.send_message(user2, "✅ Suhbatdosh topildi! Suhbatni boshlang.")
+
     elif call.data == "stop":
         if user_id in active:
             partner_id = active.pop(user_id)
             active.pop(partner_id, None)
-            bot.send_message(user_id, "Suhbat to‘xtatildi.", reply_markup=main_menu())
-            bot.send_message(partner_id, "Suhbatdosh suhbatni to‘xtatdi.", reply_markup=main_menu())
+            bot.send_message(user_id, "❌ Suhbat to‘xtatildi.", reply_markup=main_menu())
+            bot.send_message(partner_id, "❌ Suhbatdosh suhbatni to‘xtatdi.", reply_markup=main_menu())
         else:
             bot.send_message(user_id, "Siz hozircha hech kim bilan suhbatda emassiz.", reply_markup=main_menu())
+
     elif call.data == "about":
         bot.send_message(user_id, "Anonim chat-bot. Suhbatdoshingizni topish uchun 'Suhbatdosh topish' tugmasini bosing.")
 
@@ -75,9 +85,16 @@ def relay_message(message):
         try:
             bot.send_message(partner_id, message.text)
         except Exception:
-            bot.send_message(user_id, "Xabar yuborib bo‘lmadi.")
+            bot.send_message(user_id, "⚠️ Xabar yuborib bo‘lmadi.")
     else:
-        bot.send_message(user_id, "Siz hozircha suhbatda emassiz.\nSuhbatdosh topish uchun tegishli tugmani bosing.", reply_markup=main_menu())
+        bot.send_message(user_id, "Siz hozircha suhbatda emassiz.\nSuhbatdosh topish uchun tugmani bosing.", reply_markup=main_menu())
+
+# --- Botni boshqa oqimda ishga tushiramiz ---
+def run_bot():
+    bot.infinity_polling()
 
 if __name__ == "__main__":
-    bot.infinity_polling()
+    t = threading.Thread(target=run_bot)
+    t.start()
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host="0.0.0.0", port=port)
