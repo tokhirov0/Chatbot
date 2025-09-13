@@ -1,0 +1,11 @@
+# Telegram bot tokeningiz
+TOKEN=8400870326:AAGS_wMV6qUuFWC5teEd5kcgoS4LxwW06SA
+
+# Kanal username (faqat nom, @ belgisisiz)
+CHANNEL_USERNAME=shaxsiy_blog1o
+
+# Admin ID (Telegram numeric user ID)
+ADMIN_ID=6733100026
+
+# Render avtomatik PORT berib yuboradi (o'zingiz qo'ymasangiz ham bo'ladi)
+PORT=10000
